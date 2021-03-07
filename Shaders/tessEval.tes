@@ -1,0 +1,172 @@
+#version 450 core
+layout(triangles, equal_spacing, ccw) in;
+
+vec2 interpolate2D(vec2 v0, vec2 v1, vec2 v2);
+vec3 interpolate3D(vec3 v0, vec3 v1, vec3 v2);
+float hash(float n);
+float snoise(vec3 x);
+float noise(vec3 position, int octaves);
+
+//uniform mat4 model;
+uniform mat4 view;
+uniform mat4 projection;
+
+uniform int terrMode;
+
+uniform sampler2D heightMap;
+uniform int scale;
+
+uniform vec3 camPos;
+
+uniform int octaves;
+
+//uniform float DENS;
+//uniform float G;
+
+in TC_OUT
+{
+	vec2 tcUV;
+	vec3 tcFragPos;
+}te_in[];
+
+//struct OutputPatch
+//{
+//    vec3 WorldPos_B030;
+//    vec3 WorldPos_B021;
+//    vec3 WorldPos_B012;
+//    vec3 WorldPos_B003;
+//    vec3 WorldPos_B102;
+//    vec3 WorldPos_B201;
+//    vec3 WorldPos_B300;
+//    vec3 WorldPos_B210;
+//    vec3 WorldPos_B120;
+//    vec3 WorldPos_B111;
+//	vec3 tc_norms[3];
+//};
+
+//in patch OutputPatch oPatch;
+
+out TE_OUT
+{
+	vec3 teFragPos;
+	vec2 teUV;
+	vec3 teNormal;
+	float height; //Passing this through, as it didnt seem to work without doing this. Not that it works great even with this.
+	float vis;
+	float dist;
+}te_out;
+
+void main()
+{
+
+
+	//NON PN TRIANGLES
+	te_out.teFragPos = interpolate3D(te_in[0].tcFragPos, te_in[1].tcFragPos, te_in[2].tcFragPos);
+
+	te_out.teUV = interpolate2D(te_in[0].tcUV, te_in[1].tcUV, te_in[2].tcUV);
+
+	if(terrMode != 1)
+	{
+		//Normal Calculations
+		float right = (textureOffset(heightMap, te_out.teUV, ivec2(1, 0)).r)*scale;
+		float left = (textureOffset(heightMap, te_out.teUV, ivec2(-1, 0)).r)*scale;
+		float up = (textureOffset(heightMap, te_out.teUV, ivec2(0, 1)).r)*scale;
+		float down = (textureOffset(heightMap, te_out.teUV, ivec2(0, -1)).r)*scale;
+		
+		float lr = left - right;
+		float du = up - down;
+		te_out.teNormal = normalize(vec3(lr, 2.0, du));
+
+		//HEIGHT MAP STUFF
+		te_out.height = texture(heightMap, te_out.teUV).r; //this gives a value in a [0,1] range
+		te_out.teFragPos.y = te_out.height * scale;
+	}
+	else if(terrMode == 1)
+	{
+		te_out.teFragPos.y = noise(te_out.teFragPos, octaves);
+		te_out.height = te_out.teFragPos.y / 2;
+		te_out.teNormal = vec3(0.0, 0.0, 0.0);
+	}
+	
+
+	//FOG
+	te_out.dist = distance(camPos, te_out.teFragPos); 
+	//te_out.vis = exp(-pow((te_out.dist*DENS), G));
+	te_out.vis = 10 + (0.04 * -te_out.dist);
+	te_out.vis = clamp(te_out.vis, 0.0, 1.0);
+	
+
+	//NECCESSARY EITHER WAY
+	gl_Position = projection * view * vec4(te_out.teFragPos, 1.0); 
+}
+
+vec2 interpolate2D(vec2 v0, vec2 v1, vec2 v2)
+{
+	return vec2(gl_TessCoord.x) * v0 + vec2(gl_TessCoord.y) * v1 + vec2(gl_TessCoord.z) * v2;
+}
+
+vec3 interpolate3D(vec3 v0, vec3 v1, vec3 v2)
+{
+	return vec3(gl_TessCoord.x) * v0 + vec3(gl_TessCoord.y) * v1 + vec3(gl_TessCoord.z) * v2;
+}
+
+float hash(float n) 
+{
+    return fract(sin(n) * 753.5453123);
+}
+
+float snoise(vec3 x)
+{
+	vec3 p = floor(x);
+	vec3 f = fract(x);
+	f = f * f * (3.0 - (2.0 * f));
+
+	float n = p.x + p.y * 157.0 + 113.0 * p.z;
+	return mix(mix(mix(hash(n + 0.0), hash(n + 1.0), f.x),
+		mix(hash(n + 157.0), hash(n + 158.0), f.x), f.y),
+		mix(mix(hash(n + 113.0), hash(n + 114.0), f.x),
+			mix(hash(n + 270.0), hash(n + 271.0), f.x), f.y), f.z);
+}
+
+float noise(vec3 position, int octaves)
+{
+	float total = 0.0;
+	float frequency = 0.007;
+	float maxAmplitude = 0.0;
+	float amplitude = 10.0;
+	for (int i = 0; i < octaves; i++)
+	{
+		total += snoise(position * frequency) * amplitude;
+		frequency *= 2.0;
+		amplitude /= 2.0;
+		maxAmplitude += amplitude;
+	}
+	return (total / maxAmplitude) * scale;
+}
+
+//PN TRIANGLES
+	/////////////////////////////////////////////////////////////////////////////////////////////
+	//te_out.teNormal = interpolate3D(oPatch.tc_norms[0], oPatch.tc_norms[1], oPatch.tc_norms[2]);
+	//
+    //float u = gl_TessCoord.x;
+    //float v = gl_TessCoord.y;
+    //float w = gl_TessCoord.z;
+	//
+    //float uPow3 = pow(u, 3);
+    //float vPow3 = pow(v, 3);
+    //float wPow3 = pow(w, 3);
+    //float uPow2 = pow(u, 2);
+    //float vPow2 = pow(v, 2);
+    //float wPow2 = pow(w, 2);
+	//
+	//te_out.teFragPos = oPatch.WorldPos_B300 * wPow3 +
+    //                oPatch.WorldPos_B030 * uPow3 +
+    //                oPatch.WorldPos_B003 * vPow3 +
+    //                oPatch.WorldPos_B210 * 3.0 * wPow2 * u +
+    //                oPatch.WorldPos_B120 * 3.0 * w * uPow2 +
+    //                oPatch.WorldPos_B201 * 3.0 * wPow2 * v +
+    //                oPatch.WorldPos_B021 * 3.0 * uPow2 * v +
+    //                oPatch.WorldPos_B102 * 3.0 * w * vPow2 +
+    //                oPatch.WorldPos_B012 * 3.0 * u * vPow2 +
+    //                oPatch.WorldPos_B111 * 6.0 * w * u * v;
+	////////////////////////////////////////////////////////////////////////////////////////////
