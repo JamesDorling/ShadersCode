@@ -15,6 +15,6 @@ out VS_OUT
 void main()
 {
 	//vs_out.vNormal = aNormal;
-	vs_out.vUV = aUV;
-	vs_out.FragPos = (model * vec4(aPos, 1.0)).xyz;
+	vs_out.vUV = aUV; //Pass through the UV coordinates
+	vs_out.FragPos = (model * vec4(aPos, 1.0)).xyz; //Pass through the fragment position, calculated by taking the position and multiplying it by the model.
 }

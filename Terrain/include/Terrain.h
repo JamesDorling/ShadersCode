@@ -17,15 +17,10 @@ public:
 	Terrain();
 	unsigned int getVAO();
 	int getSize();
-	void setFBOColour();
-	void setFBODepth();
-	void renderQuad();
 
 	PerlinNoise perlin;
-	
-	unsigned int VAO, VBO, quadVAO, quadVBO, FBO, depthFBO;
-	unsigned int textureColorBuffer;
-	unsigned int textureDepthBuffer;
+
+	unsigned int VAO, VBO;
 
 	// settings
 	const unsigned int SCR_WIDTH = 1200;

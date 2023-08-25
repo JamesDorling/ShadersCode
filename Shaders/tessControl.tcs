@@ -2,8 +2,6 @@
 layout (vertices = 3) out;
 
 float GetTessLevel(float Dist1, float Dist2);
-//void CalcPositions();
-//vec3 ProjectToPlane(vec3 Point, vec3 PlanePoint, vec3 PlaneNormal);
 
 in VS_OUT
 {
@@ -17,24 +15,6 @@ out TC_OUT
 	vec3 tcFragPos;
 }tc_out[];
 
-//struct OutputPatch
-//{
-//    vec3 WorldPos_B030;
-//    vec3 WorldPos_B021;
-//    vec3 WorldPos_B012;
-//    vec3 WorldPos_B003;
-//    vec3 WorldPos_B102;
-//    vec3 WorldPos_B201;
-//    vec3 WorldPos_B300;
-//    vec3 WorldPos_B210;
-//    vec3 WorldPos_B120;
-//    vec3 WorldPos_B111;
-//    vec3 tc_norms[3];
-//};
-
-// attributes of the output CPs
-//out patch OutputPatch oPatch;
-
 uniform vec3 camPos;
 
 void main()
@@ -42,12 +22,12 @@ void main()
 	
 	if (gl_InvocationID == 0)
 	{
-		vec3 eye  = vec3(camPos.x, 0, camPos.z);
-		vec3 Pos1 = vec3(tc_in[0].FragPos.x, 0, tc_in[0].FragPos.z);
-		vec3 Pos2 = vec3(tc_in[1].FragPos.x, 0, tc_in[1].FragPos.z);
-		vec3 Pos3 = vec3(tc_in[2].FragPos.x, 0, tc_in[2].FragPos.z);
+		vec2 eye  = vec2(camPos.x, camPos.z); //get the camera position without the Y axis
+		vec2 Pos1 = vec2(tc_in[0].FragPos.x, tc_in[0].FragPos.z); //Get each vertex position without the Y axis
+		vec2 Pos2 = vec2(tc_in[1].FragPos.x, tc_in[1].FragPos.z);
+		vec2 Pos3 = vec2(tc_in[2].FragPos.x, tc_in[2].FragPos.z);
 
-		float eyeToVertexDist0 = distance(eye, Pos1);
+		float eyeToVertexDist0 = distance(eye, Pos1); //Calculate distances from the eye to each vertex without the Y axis being a factor
 		float eyeToVertexDist1 = distance(eye, Pos2);
 		float eyeToVertexDist2 = distance(eye, Pos3);
 
@@ -55,21 +35,23 @@ void main()
 		//float eyeToVertexDist1 = distance(camPos, tc_in[1].FragPos);
 		//float eyeToVertexDist2 = distance(camPos, tc_in[2].FragPos);
 
-		gl_TessLevelOuter[0] = GetTessLevel(eyeToVertexDist1, eyeToVertexDist2);
+		gl_TessLevelOuter[0] = GetTessLevel(eyeToVertexDist1, eyeToVertexDist2); //Calculate the tesselation values for each part of the fragment
 		gl_TessLevelOuter[1] = GetTessLevel(eyeToVertexDist2, eyeToVertexDist0);
 		gl_TessLevelOuter[2] = GetTessLevel(eyeToVertexDist0, eyeToVertexDist1);
-		gl_TessLevelInner[0] = gl_TessLevelOuter[1];
+		gl_TessLevelInner[0] = gl_TessLevelOuter[1]; //Middle of the triangle is set to the same as one of the sides
 	}
 
-	tc_out[gl_InvocationID].tcUV		= tc_in[gl_InvocationID].vUV;
-	tc_out[gl_InvocationID].tcFragPos	= tc_in[gl_InvocationID].FragPos;
+	tc_out[gl_InvocationID].tcUV		= tc_in[gl_InvocationID].vUV; //Pass through the UV coordinates
+	tc_out[gl_InvocationID].tcFragPos	= tc_in[gl_InvocationID].FragPos; //Pass through the fragpos
 }
 
 float GetTessLevel(float Dist1, float Dist2)
 {
 	float avgDist = (Dist1 + Dist2) / 2.0;
-	float tess = 10.0 + (0.03 * -avgDist); //negative distance used because closer should mean higher. Thats multiplied by 0.03 to make it happen further away.
-	if(tess < 1)// && avgDist < 500) //Make it so that tess cannot be 0 unless really far (Will be obscured by fog when I can get it to work)
+	//float tess = 10.0 + (0.02 * -avgDist); //negative distance used because closer should mean higher. Thats multiplied by 0.02 to make it happen further away.
+	float tess = exp(-pow((avgDist * 0.0025), 3.5)) * 5; //Calculate the tesselation exponentially. thsi is then multiplied by five, as without that the value was too low, and this seems to work.
+
+	if(tess < 1)// && avgDist < 500) //Make it so that tess cannot be 0 unless really far
 	{
 		tess = 1;
 	}
@@ -77,57 +59,6 @@ float GetTessLevel(float Dist1, float Dist2)
 	{
 		tess = 8;
 	}
-	if(avgDist < 300 && tess < 2) //Set the tess to 2 with a step to make it so that average distance means average detail
-	{
-		tess = 2;
-	}
-	return tess;
-}
 
-//void CalcPositions()
-//{
-//    // The original vertices stay the same
-//    oPatch.WorldPos_B030 = tc_in[0].FragPos;
-//    oPatch.WorldPos_B003 = tc_in[1].FragPos;
-//    oPatch.WorldPos_B300 = tc_in[2].FragPos;
-//
-//    // Edges are names according to the opposing vertex
-//    vec3 EdgeB300 = oPatch.WorldPos_B003 - oPatch.WorldPos_B030;
-//    vec3 EdgeB030 = oPatch.WorldPos_B300 - oPatch.WorldPos_B003;
-//    vec3 EdgeB003 = oPatch.WorldPos_B030 - oPatch.WorldPos_B300;
-//
-//    // Generate two midpoints on each edge
-//    oPatch.WorldPos_B021 = oPatch.WorldPos_B030 + EdgeB300 / 3.0;
-//    oPatch.WorldPos_B012 = oPatch.WorldPos_B030 + EdgeB300 * 2.0 / 3.0;
-//    oPatch.WorldPos_B102 = oPatch.WorldPos_B003 + EdgeB030 / 3.0;
-//    oPatch.WorldPos_B201 = oPatch.WorldPos_B003 + EdgeB030 * 2.0 / 3.0;
-//    oPatch.WorldPos_B210 = oPatch.WorldPos_B300 + EdgeB003 / 3.0;
-//    oPatch.WorldPos_B120 = oPatch.WorldPos_B300 + EdgeB003 * 2.0 / 3.0;
-//
-//    // Project each midpoint on the plane defined by the nearest vertex and its normal
-//    oPatch.WorldPos_B021 = ProjectToPlane(oPatch.WorldPos_B021, oPatch.WorldPos_B030, oPatch.tc_norms[0]);
-//    oPatch.WorldPos_B012 = ProjectToPlane(oPatch.WorldPos_B012, oPatch.WorldPos_B003, oPatch.tc_norms[1]);
-//    oPatch.WorldPos_B102 = ProjectToPlane(oPatch.WorldPos_B102, oPatch.WorldPos_B003, oPatch.tc_norms[1]);
-//    oPatch.WorldPos_B201 = ProjectToPlane(oPatch.WorldPos_B201, oPatch.WorldPos_B300, oPatch.tc_norms[2]);
-//    oPatch.WorldPos_B210 = ProjectToPlane(oPatch.WorldPos_B210, oPatch.WorldPos_B300, oPatch.tc_norms[2]);
-//    oPatch.WorldPos_B120 = ProjectToPlane(oPatch.WorldPos_B120, oPatch.WorldPos_B030, oPatch.tc_norms[0]);
-//
-//    // Handle the center
-//    vec3 Center = (oPatch.WorldPos_B003 + oPatch.WorldPos_B030 + oPatch.WorldPos_B300) / 3.0;
-//    oPatch.WorldPos_B111 = (oPatch.WorldPos_B021 + oPatch.WorldPos_B012 + oPatch.WorldPos_B102 + oPatch.WorldPos_B201 + oPatch.WorldPos_B210 + oPatch.WorldPos_B120) / 6.0;
-//    oPatch.WorldPos_B111 += (oPatch.WorldPos_B111 - Center)/2 ;
-//}
-//
-//
-//vec3 ProjectToPlane(vec3 Point, vec3 PlanePoint, vec3 PlaneNormal)
-//{
-//    vec3 v = Point - PlanePoint;
-//    float Len = dot(v, PlaneNormal);
-//    vec3 d = Len * PlaneNormal;
-//    return (Point - d);
-//}
-//for (int i = 0 ; i < 3 ; i++) {
-//   oPatch.tc_norms[i] = tc_in[i].vNormal;
-//}
-//
-//CalcPositions();
+	return tess; //Return the tesselation value
+}
